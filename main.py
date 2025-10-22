@@ -8,9 +8,9 @@ from typing import Optional
 # Force unbuffered output for instant logs
 sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
 
-from location_input import LocationInput, Location
-from uber_client import UberClient
-from display import UberDisplay
+from utils.location_input import LocationInput, Location
+from utils.uber_client import UberClient
+from utils.display import UberDisplay
 
 load_dotenv()
 

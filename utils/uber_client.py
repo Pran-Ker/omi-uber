@@ -5,7 +5,7 @@ import os
 import requests
 from typing import Optional, Dict, List
 from dotenv import load_dotenv
-from fare_calculator import FareCalculator
+from utils.fare_calculator import FareCalculator
 
 load_dotenv()
 

@@ -2,7 +2,7 @@
 Display module for showing Uber ride information.
 """
 from typing import List, Dict, Optional
-from location_input import Location
+from utils.location_input import Location
 
 
 class UberDisplay:
