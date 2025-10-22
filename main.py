@@ -1,9 +1,9 @@
-from fastapi import FastAPI, Query
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 import os
 import sys
 from dotenv import load_dotenv
-from typing import Optional
+from typing import Optional, Dict, Any
 
 # Force unbuffered output for instant logs
 sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
@@ -442,6 +442,115 @@ async def get_ride_info(
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "omi-uber"}
+
+
+@app.post("/webhook/omi")
+async def omi_webhook(request: Request, uid: str = Query(...)):
+    """
+    Omi webhook endpoint for ride booking integration.
+    Receives conversation transcripts and returns ride options.
+
+    Args:
+        uid: User identifier from Omi
+        request: Contains the memory object with transcript data
+    """
+    print(f"📞 Omi webhook received for user: {uid}", flush=True)
+
+    # Parse incoming webhook payload
+    payload: Dict[str, Any] = await request.json()
+    print(f"📦 Payload: {payload}", flush=True)
+
+    # Extract transcript from payload
+    transcript = payload.get("transcript", [])
+    transcript_text = " ".join([seg.get("text", "") for seg in transcript if seg.get("is_user", False)])
+    print(f"💬 User said: {transcript_text}", flush=True)
+
+    # Use dummy locations (both hardcoded)
+    start, destination = LocationInput.get_trip_locations()
+
+    # Get ride estimates
+    price_estimates = uber_client.get_price_estimates(
+        start_latitude=start.latitude,
+        start_longitude=start.longitude,
+        end_latitude=destination.latitude,
+        end_longitude=destination.longitude
+    )
+
+    time_estimates = uber_client.get_time_estimates(
+        start_latitude=start.latitude,
+        start_longitude=start.longitude
+    )
+
+    # Generate deep link
+    deep_link = UberClient.generate_deep_link(
+        pickup_latitude=start.latitude,
+        pickup_longitude=start.longitude,
+        dropoff_latitude=destination.latitude,
+        dropoff_longitude=destination.longitude,
+        pickup_nickname=start.name,
+        dropoff_nickname=destination.name,
+        pickup_address=start.address,
+        dropoff_address=destination.address
+    )
+
+    # Generate plain text response for Omi device
+    response_text = _format_omi_response(
+        start=start,
+        destination=destination,
+        price_estimates=price_estimates,
+        time_estimates=time_estimates,
+        deep_link=deep_link
+    )
+
+    print(f"✅ Response: {response_text}", flush=True)
+
+    # Return plain text response
+    return {"message": response_text}
+
+
+def _format_omi_response(
+    start: Location,
+    destination: Location,
+    price_estimates: Optional[list],
+    time_estimates: Optional[list],
+    deep_link: str
+) -> str:
+    """
+    Format ride information as plain text for Omi device display.
+
+    Returns:
+        Plain text string with ride options and booking link
+    """
+    lines = []
+    lines.append(f"🚗 Uber Ride Options")
+    lines.append(f"From: {start.name} → To: {destination.name}")
+    lines.append("")
+
+    # Add pickup time
+    if time_estimates and len(time_estimates) > 0:
+        eta_seconds = time_estimates[0].get("estimate", 0)
+        eta_minutes = eta_seconds // 60
+        lines.append(f"⏱️  Pickup: ~{eta_minutes} min")
+        lines.append("")
+
+    # Add price options
+    if price_estimates:
+        lines.append("💰 Price Options:")
+        for est in price_estimates[:4]:  # Show top 4 options
+            display_name = est.get("localized_display_name", "Unknown")
+            estimate_str = est.get("estimate", "N/A")
+            duration = est.get("duration", 0)
+            distance = est.get("distance", 0)
+            duration_min = duration // 60
+            distance_miles = round(distance, 1)
+
+            lines.append(f"• {display_name}: {estimate_str} ({duration_min} min, {distance_miles} mi)")
+        lines.append("")
+
+    # Add booking link
+    lines.append(f"🔗 Book now: {deep_link}")
+
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

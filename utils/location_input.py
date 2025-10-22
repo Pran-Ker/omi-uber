@@ -17,10 +17,10 @@ class Location:
 class LocationInput:
     """Handles location input with hardcoded SF locations."""
 
-    # Hardcoded locations in San Francisco
+    # Hardcoded locations (dummy data for testing)
     START_LOCATION = Location(
-        name="Grant Avenue",
-        address="1443 Grant Ave, San Francisco, CA",
+        name="Home",
+        address="1443 Tram Avenue",
         latitude=37.7989,
         longitude=-122.4074
     )
